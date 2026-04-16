@@ -1,0 +1,22 @@
+# Build outputs
+build/
+
+# Compiled object files
+*.o
+*.so
+
+# Log and CSV outputs from tool runs
+*.txt
+*.csv
+leaks.*
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
