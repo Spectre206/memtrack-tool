@@ -179,6 +179,7 @@ void tracked_free(void *ptr) {
             "[memtrack] WARNING: free() called on untracked pointer %p "
             "— possible double-free or pointer not allocated with malloc()\n",
             ptr);
+        return;
     }
 
     /* ── Always call real free ── */
