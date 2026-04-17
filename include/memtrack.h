@@ -45,9 +45,10 @@ extern pthread_mutex_t    lock;
 
 /* ── Macro Wrappers — intercept calls at compile time ──────── */
 /* SCOPE: malloc() and free() ONLY                               */
+#ifndef NO_MEMTRACK
 #define malloc(size)   tracked_malloc((size), __FILE__, __LINE__, __func__)
 #define free(ptr)      tracked_free((ptr))
-
+#endif
 /* ── Function Declarations ─────────────────────────────────── */
 /* Adeel implements both of these in src/memtrack.c              */
 void *tracked_malloc(size_t size, const char *file, int line, const char *func);

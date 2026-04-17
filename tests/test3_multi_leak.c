@@ -5,6 +5,7 @@
  * ============================================================ */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include "../include/memtrack.h"
 
 int main(void) {

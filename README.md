@@ -3,132 +3,223 @@
 **System Programming Project | UET Peshawar**
 **Team: Adeel · Faizullah · Qasim**
 
-A lightweight runtime memory leak detector for C programs on Linux.
-Intercepts `malloc()` and `free()` via `LD_PRELOAD` — no source modification required except one `#include`.
+A lightweight, runtime memory leak detector for C programs on Linux.
+Supports both **linked mode (with file/line tracking)** and **LD_PRELOAD mode (no recompilation required)**.
 
 ---
 
-## How It Works
+## 🚀 Overview
 
-1. Our shared library (`libmemtrack.so`) is injected before libc using `LD_PRELOAD`
-2. Every `malloc()` call is intercepted, recorded in a linked list with file/line/func info
-3. Every `free()` removes the matching record
-4. On program exit, remaining records = leaked allocations → full report printed
+This tool intercepts `malloc()` and `free()` calls to track dynamic memory usage at runtime.
+It maintains an internal data structure of all active allocations and generates a detailed report at program termination.
+
+Unlike basic preload-only tools, this system combines:
+
+* **Compile-time macro wrapping** → precise file/line/function tracking
+* **Runtime function interposition (`dlsym`)** → transparent interception
 
 ---
 
-## Quick Start
+## ⚙️ Modes of Operation
+
+| Mode                          | Description                                  | Use Case                              |
+| ----------------------------- | -------------------------------------------- | ------------------------------------- |
+| **Linked Mode (Recommended)** | Compile with `-lmemtrack` and include header | Full file/line/function tracking      |
+| **LD_PRELOAD Mode**           | Inject library at runtime                    | External binaries (no source changes) |
+
+---
+
+## ⚡ Quick Start
+
+### 1. Build the library
 
 ```bash
-# 1. Build the library
 make
-
-# 2. Run ANY program with the tracker
-LD_PRELOAD=./build/libmemtrack.so ./your_program
-
-# 3. Save report to a log file
-MEMTRACK_LOG=leaks.txt LD_PRELOAD=./build/libmemtrack.so ./your_program
-
-# 4. Export leaks as CSV
-MEMTRACK_CSV=leaks.csv LD_PRELOAD=./build/libmemtrack.so ./your_program
 ```
 
-For programs where you want file/line info, add one line at the top:
+### 2. Run (Linked Mode — recommended)
+
+```bash
+LD_LIBRARY_PATH=./build ./your_program
+```
+
+### 3. Optional features
+
+```bash
+# Save report to file
+MEMTRACK_LOG=leaks.txt LD_LIBRARY_PATH=./build ./your_program
+
+# Export as CSV
+MEMTRACK_CSV=leaks.csv LD_LIBRARY_PATH=./build ./your_program
+```
+
+---
+
+## 📌 Enabling File/Line Tracking
+
+Add this at the top of your source file:
+
 ```c
 #include "include/memtrack.h"
 ```
 
----
-
-## Build Targets
-
-| Command | Description |
-|---|---|
-| `make` | Build `libmemtrack.so` |
-| `make samples` | Build sample programs A, B, C |
-| `make tests` | Build all 6 test programs |
-| `make run-samples` | Build + run all samples |
-| `make run-tests` | Build + run full test suite |
-| `make clean` | Remove build directory |
+This enables macro-based interception for precise debugging information.
 
 ---
 
-## Project Structure
+## 🔍 Internal Architecture
+
+```text
+Application Code
+      │
+      ▼
+#define malloc → tracked_malloc()
+      │
+      ▼
+tracked_malloc()
+      │
+      ├── real_malloc() via dlsym(RTLD_NEXT)
+      ├── create AllocationRecord
+      ├── insert into linked list (mutex protected)
+      ▼
+Program Execution
+      ▼
+tracked_free()
+      │
+      ├── remove record from list
+      ├── update freed bytes
+      ▼
+Program Exit (Destructor)
+      ▼
+generate_report()
+```
+
+---
+
+## ✨ Key Features
+
+* 🔁 Runtime interception using `dlsym(RTLD_NEXT)`
+* 📍 File/line/function tracking via macro wrapping
+* 🧵 Thread-safe tracking using `pthread_mutex`
+* 🧠 Re-entrancy-safe initialization (handles `dlsym` recursion)
+* 🧱 Custom fallback allocator for early-stage allocations
+* 📊 Leak severity classification (SMALL / MEDIUM / LARGE)
+* 📁 Optional log file and CSV export
+* ⚠️ Detection of invalid or double `free()` calls
+
+---
+
+## 📊 Sample Output
+
+```
+SUMMARY
+Total malloc() calls   : 2
+Total bytes allocated  : 5.00 MB
+Total bytes freed      : 64 bytes
+Leaked blocks          : 1
+Leaked bytes           : 5.00 MB
+
+LEAK #1 — 5.00 MB  [LARGE]
+  File    : samples/sample_c.c
+  Line    : 15
+  Func    : main()
+```
+
+---
+
+## 🧪 Test Suite & Validation
+
+The project includes an automated test suite covering:
+
+* No leaks
+* Single leak
+* Multiple leaks
+* Large allocations
+* Invalid free detection
+* Multi-threaded scenarios
+
+### Validation
+
+The tool is validated against **Valgrind**:
+
+| Test Case      | Expected       | Our Tool | Valgrind |
+| -------------- | -------------- | -------- | -------- |
+| No Leak        | 0              | ✅        | ✅        |
+| Single Leak    | 1              | ✅        | ✅        |
+| Multiple Leaks | 10             | ✅        | ✅        |
+| Large Leak     | 1              | ✅        | ✅        |
+| Invalid Free   | Warning + Leak | ✅        | ✅        |
+| Multithreaded  | 4              | ✅        | ✅        |
+
+---
+
+## 📁 Project Structure
 
 ```
 memtrack-tool/
 ├── include/
-│   └── memtrack.h          ← Shared contract (all three include this)
+│   └── memtrack.h
 ├── src/
-│   ├── memtrack.c          ← Adeel: tracked_malloc, tracked_free, linked list, mutex
-│   └── reporter.c          ← Faizullah: generate_report, severity, ANSI colors
+│   ├── memtrack.c
+│   └── reporter.c
 ├── samples/
-│   ├── sample_a.c          ← Faizullah: No leaks (clean report)
-│   ├── sample_b.c          ← Faizullah: 5 small leaks
-│   └── sample_c.c          ← Faizullah: 1 large leak (5 MB)
 ├── tests/
-│   ├── test1_no_leak.c     ← Qasim
-│   ├── test2_single_leak.c ← Qasim
-│   ├── test3_multi_leak.c  ← Qasim
-│   ├── test4_large_leak.c  ← Qasim
-│   ├── test5_invalid_free.c← Qasim
-│   ├── test6_multithread.c ← Qasim
-│   └── run_tests.sh        ← Qasim: automated test runner
 ├── docs/
-│   ├── user_guide.md       ← Qasim: usage documentation
-│   └── presentation/       ← Qasim: slides
-├── build/                  ← Generated (gitignored)
+├── build/
 └── Makefile
 ```
 
 ---
 
-## Severity Levels
+## ⚠️ Limitations
 
-| Level | Size | Terminal Color |
-|---|---|---|
-| SMALL | < 1 KB | 🟢 GREEN |
-| MEDIUM | 1 KB – 1 MB | 🟡 YELLOW |
-| LARGE | > 1 MB | 🔴 RED |
-
----
-
-## Team Responsibilities
-
-| Member | Module | Files |
-|---|---|---|
-| Adeel | Memory Tracking | `src/memtrack.c`, `include/memtrack.h` |
-| Faizullah | Reporting System | `src/reporter.c`, `samples/` |
-| Qasim | Testing & Analysis | `tests/`, `docs/` |
+* Only tracks `malloc()` and `free()` (not `calloc`, `realloc`)
+* Requires recompilation for full file/line tracking
+* Invalid pointer detection is heuristic
+* Does not track stack or static allocations
+* Adds minor runtime overhead due to mutex locking
 
 ---
 
-## Git Workflow
+## 🧠 Technical Highlights
 
-```bash
-# Clone
-git clone https://github.com/YOUR_USERNAME/memtrack-tool.git
-
-# Each member works on their branch
-git checkout -b feature/tracker     # Adeel
-git checkout -b feature/reporter    # Faizullah
-git checkout -b feature/tests       # Qasim
-
-# Merge to dev when module is working
-git checkout dev
-git merge feature/tracker
-
-# Merge to main only after full team review
-git checkout main
-git merge dev
-```
+* Function interposition using `dlsym(RTLD_NEXT)`
+* Constructor/destructor-based lifecycle management
+* Lock-protected linked list for allocation tracking
+* Safe handling of early allocations via fallback buffer
+* Designed to avoid recursion during initialization
 
 ---
 
-## Requirements
+## 👥 Team Responsibilities
 
-- Linux (Ubuntu 20.04+ recommended)
-- GCC
-- `libdl` (usually pre-installed)
-- `libpthread` (usually pre-installed)
-- Valgrind (optional, for test comparison)
+| Member    | Module               |
+| --------- | -------------------- |
+| Adeel     | Memory Tracking Core |
+| Faizullah | Reporting System     |
+| Qasim     | Testing & Validation |
+
+---
+
+## 🛠 Requirements
+
+* Linux (Ubuntu recommended)
+* GCC
+* `libdl`
+* `libpthread`
+* Valgrind (optional, for validation)
+
+---
+
+## 📌 Future Work
+
+* Support for `calloc`, `realloc`, `strdup`
+* Leak grouping and aggregation
+* Performance optimization (lock-free structures)
+* Integration with visualization tools
+
+---
+
+## 📜 License
+
+Academic project — free to use for learning and experimentation.
