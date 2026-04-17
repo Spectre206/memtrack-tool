@@ -1,69 +1,56 @@
+Here is the fully updated `README.md` reflecting your recent architectural shifts, the new `logs/` directory structure, and the upgraded automated Valgrind testing pipeline. 
+
+```markdown
 # Memory Leak Detection Tool
 
 **System Programming Project | UET Peshawar**
 **Team: Adeel · Faizullah · Qasim**
 
-A lightweight, runtime memory leak detector for C programs on Linux.
-Supports both **linked mode (with file/line tracking)** and **LD_PRELOAD mode (no recompilation required)**.
+A lightweight, runtime memory leak detector for C programs on Linux. 
+This tool intercepts `malloc()` and `free()` calls to track dynamic memory usage at runtime, maintaining an internal data structure of active allocations to generate detailed, color-coded reports at program termination.
 
 ---
 
 ## 🚀 Overview
 
-This tool intercepts `malloc()` and `free()` calls to track dynamic memory usage at runtime.
-It maintains an internal data structure of all active allocations and generates a detailed report at program termination.
+Unlike basic preload-only tools, this system is designed with a **Linked Mode** architecture as its primary tracking mechanism, combining:
 
-Unlike basic preload-only tools, this system combines:
-
-* **Compile-time macro wrapping** → precise file/line/function tracking
-* **Runtime function interposition (`dlsym`)** → transparent interception
+* **Compile-time macro wrapping:** Injects precise `__FILE__`, `__LINE__`, and `__func__` metadata directly into the tracking nodes.
+* **Runtime function interposition:** Uses `dlsym(RTLD_NEXT)` for transparent interception of heap allocations.
 
 ---
 
 ## ⚙️ Modes of Operation
 
-| Mode                          | Description                                  | Use Case                              |
-| ----------------------------- | -------------------------------------------- | ------------------------------------- |
-| **Linked Mode (Recommended)** | Compile with `-lmemtrack` and include header | Full file/line/function tracking      |
-| **LD_PRELOAD Mode**           | Inject library at runtime                    | External binaries (no source changes) |
+| Mode | Description | Use Case |
+| :--- | :--- | :--- |
+| **Linked Mode (Primary)** | Compile with `-lmemtrack` and include `memtrack.h` | Full file, line, and function tracking for internal development. |
+| **LD_PRELOAD Mode (Secondary)** | Inject library at runtime (`LD_PRELOAD=./libmemtrack.so`) | External binaries where source code cannot be modified (loses precise line numbers). |
 
 ---
 
 ## ⚡ Quick Start
 
-### 1. Build the library
-
+### 1. Build the tracking library and directories
 ```bash
 make
 ```
+*Note: This generates `build/libmemtrack.so` and prepares the `logs/` directory.*
 
-### 2. Run (Linked Mode — recommended)
-
+### 2. Run your program (Linked Mode)
+Add `#include "include/memtrack.h"` to your source files, compile with `-lmemtrack`, and execute:
 ```bash
 LD_LIBRARY_PATH=./build ./your_program
 ```
 
-### 3. Optional features
-
+### 3. Output Modes & Logging
 ```bash
-# Save report to file
-MEMTRACK_LOG=leaks.txt LD_LIBRARY_PATH=./build ./your_program
+# Export report to a plain text log file
+MEMTRACK_LOG=logs/leaks.txt LD_LIBRARY_PATH=./build ./your_program
 
-# Export as CSV
-MEMTRACK_CSV=leaks.csv LD_LIBRARY_PATH=./build ./your_program
+# Export report as a data-rich CSV
+MEMTRACK_CSV=logs/leaks.csv LD_LIBRARY_PATH=./build ./your_program
 ```
-
----
-
-## 📌 Enabling File/Line Tracking
-
-Add this at the top of your source file:
-
-```c
-#include "include/memtrack.h"
-```
-
-This enables macro-based interception for precise debugging information.
 
 ---
 
@@ -73,7 +60,7 @@ This enables macro-based interception for precise debugging information.
 Application Code
       │
       ▼
-#define malloc → tracked_malloc()
+#define malloc(size) → tracked_malloc(size, __FILE__, __LINE__, __func__)
       │
       ▼
 tracked_malloc()
@@ -86,10 +73,10 @@ Program Execution
       ▼
 tracked_free()
       │
-      ├── remove record from list
-      ├── update freed bytes
+      ├── O(n) scan to remove record from list
+      ├── update global freed bytes counter
       ▼
-Program Exit (Destructor)
+Program Exit (__attribute__((destructor)))
       ▼
 generate_report()
 ```
@@ -98,128 +85,89 @@ generate_report()
 
 ## ✨ Key Features
 
-* 🔁 Runtime interception using `dlsym(RTLD_NEXT)`
-* 📍 File/line/function tracking via macro wrapping
-* 🧵 Thread-safe tracking using `pthread_mutex`
-* 🧠 Re-entrancy-safe initialization (handles `dlsym` recursion)
-* 🧱 Custom fallback allocator for early-stage allocations
-* 📊 Leak severity classification (SMALL / MEDIUM / LARGE)
-* 📁 Optional log file and CSV export
-* ⚠️ Detection of invalid or double `free()` calls
-
----
-
-## 📊 Sample Output
-
-```
-SUMMARY
-Total malloc() calls   : 2
-Total bytes allocated  : 5.00 MB
-Total bytes freed      : 64 bytes
-Leaked blocks          : 1
-Leaked bytes           : 5.00 MB
-
-LEAK #1 — 5.00 MB  [LARGE]
-  File    : samples/sample_c.c
-  Line    : 15
-  Func    : main()
-```
+* 🔁 **Runtime Interception:** Utilizes `dlsym(RTLD_NEXT)` to route allocations.
+* 📍 **Precision Tracking:** Macro wrapping captures precise file, line, and function origins.
+* 🧵 **Thread-Safety:** Fully protected singly-linked list using `pthread_mutex`.
+* 🧠 **Re-entrancy Guard:** Custom static fallback allocator handles recursive internal `dlsym` setup calls gracefully.
+* 📊 **Severity Classification:** Automatically categorizes leaks (SMALL < 1KB, MEDIUM < 1MB, LARGE ≥ 1MB).
+* ⚠️ **Anomaly Detection:** Flags invalid or double `free()` calls without crashing the target program.
 
 ---
 
 ## 🧪 Test Suite & Validation
 
-The project includes an automated test suite covering:
+The project includes a robust, automated test suite that directly pits our tracking logic against **Valgrind Memcheck** to ensure 100% mathematical accuracy. 
 
-* No leaks
-* Single leak
-* Multiple leaks
-* Large allocations
-* Invalid free detection
-* Multi-threaded scenarios
+To run the full suite (samples and automated tests):
+```bash
+make run-samples
+make run-tests
+```
 
-### Validation
+### Automated Validation Pipeline
+The `run_tests.sh` script automatically compiles two versions of every test: a *Linked* binary for our tool, and a *Pure* binary (`-DNO_MEMTRACK`) for an unadulterated Valgrind baseline. 
 
-The tool is validated against **Valgrind**:
+**Sample Output:**
+```text
+── test3 (Multiple Leaks) ─────────────────────────
+  Our tool  : 10 block(s) leaked (640 bytes)
+  Valgrind  : 10 block(s) leaked (640 bytes)
 
-| Test Case      | Expected       | Our Tool | Valgrind |
-| -------------- | -------------- | -------- | -------- |
-| No Leak        | 0              | ✅        | ✅        |
-| Single Leak    | 1              | ✅        | ✅        |
-| Multiple Leaks | 10             | ✅        | ✅        |
-| Large Leak     | 1              | ✅        | ✅        |
-| Invalid Free   | Warning + Leak | ✅        | ✅        |
-| Multithreaded  | 4              | ✅        | ✅        |
+── test4 (Large Leak) ─────────────────────────────
+  Our tool  : 1 block(s) leaked (2.00 MB)
+  Valgrind  : 1 block(s) leaked (2,097,152 bytes)
+```
+*All detailed execution logs for both Valgrind and Memtrack are permanently saved in the `logs/` directory after testing.*
 
 ---
 
 ## 📁 Project Structure
 
-```
+```text
 memtrack-tool/
 ├── include/
-│   └── memtrack.h
+│   └── memtrack.h          # Shared team contract & macros
 ├── src/
-│   ├── memtrack.c
-│   └── reporter.c
-├── samples/
-├── tests/
-├── docs/
-├── build/
-└── Makefile
+│   ├── memtrack.c          # Core interception & list logic
+│   └── reporter.c          # Severity classification & UI output
+├── samples/                # Visual formatting demonstrations
+├── tests/                  # Valgrind validation suite & bash runner
+├── build/                  # Compiled artifacts (.so and executables)
+├── logs/                   # Generated reports and Valgrind comparisons
+└── Makefile                # Build system automation
 ```
 
 ---
 
 ## ⚠️ Limitations
 
-* Only tracks `malloc()` and `free()` (not `calloc`, `realloc`)
-* Requires recompilation for full file/line tracking
-* Invalid pointer detection is heuristic
-* Does not track stack or static allocations
-* Adds minor runtime overhead due to mutex locking
-
----
-
-## 🧠 Technical Highlights
-
-* Function interposition using `dlsym(RTLD_NEXT)`
-* Constructor/destructor-based lifecycle management
-* Lock-protected linked list for allocation tracking
-* Safe handling of early allocations via fallback buffer
-* Designed to avoid recursion during initialization
+* Tracks `malloc()` and `free()` exclusively (`calloc` and `realloc` are currently out of scope).
+* Invalid pointer detection relies on heuristic untracked-pointer warnings.
+* Minor execution overhead introduced by `pthread_mutex` locking during concurrent allocation heavy workloads.
+* Does not track stack or static segment memory.
 
 ---
 
 ## 👥 Team Responsibilities
 
-| Member    | Module               |
-| --------- | -------------------- |
-| Adeel     | Memory Tracking Core |
-| Faizullah | Reporting System     |
-| Qasim     | Testing & Validation |
+| Member | Core Module | Focus Areas |
+| :--- | :--- | :--- |
+| **Adeel** | Memory Tracking | `tracked_malloc`, linked list management, mutex safety, global state |
+| **Faizullah** | Reporting System | `generate_report`, severity logic, ANSI colors, CSV/File logging |
+| **Qasim** | Testing & Analysis | Valgrind baseline comparison, bash scripting, overhead benchmarking |
 
 ---
 
 ## 🛠 Requirements
 
-* Linux (Ubuntu recommended)
-* GCC
-* `libdl`
-* `libpthread`
-* Valgrind (optional, for validation)
-
----
-
-## 📌 Future Work
-
-* Support for `calloc`, `realloc`, `strdup`
-* Leak grouping and aggregation
-* Performance optimization (lock-free structures)
-* Integration with visualization tools
+* **OS:** Linux (Ubuntu recommended)
+* **Compiler:** GCC
+* **Libraries:** `libdl`, `libpthread`
+* **Validation:** Valgrind (required to run the automated test script)
 
 ---
 
 ## 📜 License
 
-Academic project — free to use for learning and experimentation.
+Academic project — free to use for learning, experimentation, and system programming education.
+```

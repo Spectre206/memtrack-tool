@@ -17,9 +17,13 @@ for TEST_NAME in "${TESTS[@]}"; do
     # 1. Run Valgrind on the PURE binary, saving to its own permanent log file
     valgrind --leak-check=full --log-file=$VALGRIND_LOG ./build/${TEST_NAME}_valgrind > /dev/null 2>&1
     
-    # Extract the 'definitely lost' bytes from Valgrind log
+    # Extract the 'definitely lost' bytes from Valgrind log (Column 4)
     VALGRIND_BYTES=$(grep "definitely lost:" $VALGRIND_LOG | awk '{print $4}')
     if [ -z "$VALGRIND_BYTES" ]; then VALGRIND_BYTES="0"; fi
+
+    # Extract the 'definitely lost' blocks from Valgrind log (Column 7)
+    VALGRIND_BLOCKS=$(grep "definitely lost:" $VALGRIND_LOG | awk '{print $7}')
+    if [ -z "$VALGRIND_BLOCKS" ]; then VALGRIND_BLOCKS="0"; fi
 
     # 2. Run your tool on the LINKED binary, explicitly telling it to generate a log file
     TOOL_OUTPUT=$(MEMTRACK_LOG=$TOOL_LOG LD_LIBRARY_PATH=./build ./build/$TEST_NAME 2>&1)
@@ -32,12 +36,11 @@ for TEST_NAME in "${TESTS[@]}"; do
     TOOL_BYTES=$(echo "$TOOL_OUTPUT" | grep "Leaked bytes" | awk -F':' '{print $2}' | xargs)
     if [ -z "$TOOL_BYTES" ]; then TOOL_BYTES="0 bytes"; fi
 
-    # 3. Print the clean comparison
-    echo "  Our tool  : $TOOL_LEAKS leak(s) detected ($TOOL_BYTES)"
-    echo "  Valgrind  : $VALGRIND_BYTES bytes definitely lost"
+    # 3. Print the perfectly mirrored comparison
+    echo "  Our tool  : $TOOL_LEAKS block(s) leaked ($TOOL_BYTES)"
+    echo "  Valgrind  : $VALGRIND_BLOCKS block(s) leaked ($VALGRIND_BYTES bytes)"
     echo ""
 
-    # Notice: We are NO LONGER deleting the log files here!
 done
 
 echo "════════════════════════════════════════════════════════════════"
