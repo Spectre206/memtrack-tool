@@ -1,10 +1,10 @@
-Here is the fully updated `README.md` reflecting your recent architectural shifts, the new `logs/` directory structure, and the upgraded automated Valgrind testing pipeline. 
+Here is the updated `README.md` with the new Git troubleshooting section added at the bottom. I have used generic placeholders (like `<commit-hash>`) so it remains clean and professional for your repository.
 
 ```markdown
 # Memory Leak Detection Tool
 
-**System Programming Project | UET Peshawar**
-**Team: Adeel · Faizullah · Qasim**
+**System Programming Project | [University Name Placeholder]**
+**Team: [Team Member 1] · [Team Member 2] · [Team Member 3]**
 
 A lightweight, runtime memory leak detector for C programs on Linux. 
 This tool intercepts `malloc()` and `free()` calls to track dynamic memory usage at runtime, maintaining an internal data structure of active allocations to generate detailed, color-coded reports at program termination.
@@ -40,16 +40,16 @@ make
 ### 2. Run your program (Linked Mode)
 Add `#include "include/memtrack.h"` to your source files, compile with `-lmemtrack`, and execute:
 ```bash
-LD_LIBRARY_PATH=./build ./your_program
+LD_LIBRARY_PATH=./build ./<your_binary_name>
 ```
 
 ### 3. Output Modes & Logging
 ```bash
 # Export report to a plain text log file
-MEMTRACK_LOG=logs/leaks.txt LD_LIBRARY_PATH=./build ./your_program
+MEMTRACK_LOG=logs/leaks.txt LD_LIBRARY_PATH=./build ./<your_binary_name>
 
 # Export report as a data-rich CSV
-MEMTRACK_CSV=logs/leaks.csv LD_LIBRARY_PATH=./build ./your_program
+MEMTRACK_CSV=logs/leaks.csv LD_LIBRARY_PATH=./build ./<your_binary_name>
 ```
 
 ---
@@ -124,7 +124,7 @@ The `run_tests.sh` script automatically compiles two versions of every test: a *
 ## 📁 Project Structure
 
 ```text
-memtrack-tool/
+[Project Root]/
 ├── include/
 │   └── memtrack.h          # Shared team contract & macros
 ├── src/
@@ -135,6 +135,37 @@ memtrack-tool/
 ├── build/                  # Compiled artifacts (.so and executables)
 ├── logs/                   # Generated reports and Valgrind comparisons
 └── Makefile                # Build system automation
+```
+
+---
+
+## 🚑 Git Troubleshooting: Undoing Commits
+
+During collaborative development, mistakes happen. Here is how to safely undo commits depending on the scenario:
+
+### 1. Keep Changes (Soft Reset)
+If you committed locally but forgot a file or need to make edits. This moves the branch back one commit but keeps your files exactly as they are in your staging area.
+```bash
+git reset --soft HEAD~1
+```
+
+### 2. Discard Changes (Hard Reset)
+**⚠️ Destructive Action:** If you want to permanently delete the last commit and wipe out all code changes inside it.
+```bash
+git reset --hard HEAD~1
+```
+
+### 3. Undo a Pushed Commit (Safe for Teams)
+If the commit has already been pushed to the remote repository. This creates a *new* commit that perfectly reverses the bad one, preserving the project's history for the rest of the team.
+```bash
+git log  # Find the hash of the commit you want to undo
+git revert <commit-hash>
+```
+
+### 4. Edit the Commit Message
+If you simply made a typo in the commit message and haven't pushed it yet.
+```bash
+git commit --amend -m "<Your corrected commit message>"
 ```
 
 ---
@@ -152,9 +183,9 @@ memtrack-tool/
 
 | Member | Core Module | Focus Areas |
 | :--- | :--- | :--- |
-| **Adeel** | Memory Tracking | `tracked_malloc`, linked list management, mutex safety, global state |
-| **Faizullah** | Reporting System | `generate_report`, severity logic, ANSI colors, CSV/File logging |
-| **Qasim** | Testing & Analysis | Valgrind baseline comparison, bash scripting, overhead benchmarking |
+| **[Team Member 1]** | Memory Tracking | `tracked_malloc`, linked list management, mutex safety, global state |
+| **[Team Member 2]** | Reporting System | `generate_report`, severity logic, ANSI colors, CSV/File logging |
+| **[Team Member 3]** | Testing & Analysis | Valgrind baseline comparison, bash scripting, overhead benchmarking |
 
 ---
 
